@@ -7,9 +7,9 @@ SX128XLT LT;
 void setup() {
     Serial.begin(115200);
     delay(2000);
-    Serial.println(F("ESP-Skytrace: Transponder Initialized"));
+    Serial.println(F("ESP-Skytrace: Transponder (ESP8285) Initialized"));
 
-    SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
+    SPI.begin(); // Standard pins used for ESP8285
 
     if (LT.begin(LORA_SS, LORA_NRESET, LORA_BUSY, LORA_DIO1, DEVICE_SX1280)) {
         Serial.println(F("SX1280 Initialized."));
@@ -23,11 +23,6 @@ void setup() {
 }
 
 void loop() {
-    // respond automatically to ranging master
-    LT.receiveRangingSlave(RANGING_ADDR, 0, WAIT_RX);
-
-    uint16_t irqStatus = LT.readIrqStatus();
-    if (irqStatus & IRQ_RANGING_SLAVE_RESPONSE_DONE) {
-        Serial.println(F("Ranging request responded."));
-    }
+    // Continuously respond to ranging pings
+    LT.receiveRanging(RANGING_ADDR, 0, TX_POWER, WAIT_RX);
 }
