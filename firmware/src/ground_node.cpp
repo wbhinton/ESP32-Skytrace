@@ -92,10 +92,10 @@ void loop() {
         // 2. Trigger Ranging
         esp8285Serial.print('!');
         
-        // 3. Wait for DIST response with timeout
+        // 3. Wait for DIST response with timeout (extended for 40-channel sweep)
         unsigned long startWait = millis();
         String distanceStr = "";
-        while (millis() - startWait < 1000) {
+        while (millis() - startWait < 2000) { 
             if (esp8285Serial.available()) {
                 String line = esp8285Serial.readStringUntil('\n');
                 line.trim();
