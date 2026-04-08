@@ -65,20 +65,44 @@ void setup() {
 }
 
 void loop() {
-    if (hasToken) {
-        Serial.println("Holding Token. Triggering Ranging...");
+    // 1. Service Incoming Serial from ESP8285 (primarily for Advanced Ranging results)
+    if (esp8285Serial.available()) {
+        String line = esp8285Serial.readStringUntil('\n');
+        line.trim();
         
-        // Trigger ESP8285 Ranging Engine
+        if (line.startsWith("ATDT:")) {
+            String val = line.substring(5);
+            Serial.printf("Advanced Result Caught: %s\n", val.c_str());
+            udp.beginPacket(LAPTOP_IP, UDP_PORT);
+            udp.printf("ID:%s,ATDT:%s", STATION_ID, val.c_str());
+            udp.endPacket();
+        } else if (line.startsWith("DIST:")) {
+            // This is handled synchronously in the token block, but 
+            // we catch it here if it's asynchronous for some reason.
+        }
+    }
+
+    if (hasToken) {
+        Serial.println("Holding Token. Switching to Master...");
+        
+        // 1. Tell ESP8285 to be Master
+        esp8285Serial.print('M');
+        delay(50); // Give radio time to switch roles
+        
+        // 2. Trigger Ranging
         esp8285Serial.print('!');
         
-        // Wait for response with timeout
+        // 3. Wait for DIST response with timeout
         unsigned long startWait = millis();
         String distanceStr = "";
         while (millis() - startWait < 1000) {
             if (esp8285Serial.available()) {
-                char c = esp8285Serial.read();
-                if (c == '\n') break;
-                if (c != '\r') distanceStr += c;
+                String line = esp8285Serial.readStringUntil('\n');
+                line.trim();
+                if (line.startsWith("DIST:")) {
+                    distanceStr = line.substring(5);
+                    break;
+                }
             }
         }
 
@@ -86,8 +110,6 @@ void loop() {
             float distance = distanceStr.toFloat();
             if (distance > 0) {
                 Serial.printf("Distance measured: %.2f m\n", distance);
-                
-                // Pack UDP and send to Laptop
                 udp.beginPacket(LAPTOP_IP, UDP_PORT);
                 udp.printf("ID:%s,DIST:%.2f", STATION_ID, distance);
                 udp.endPacket();
@@ -96,7 +118,11 @@ void loop() {
             }
         }
 
-        // Delay slightly for stability then pass token
+        // 4. Return to Listener state before passing token
+        esp8285Serial.print('L');
+        delay(20);
+
+        // 5. Delay slightly for stability then pass token
         delay(50);
         uint8_t tokenMsg = 'T';
         if (WifiEspNow.send(nextNodeMac, &tokenMsg, 1)) {
