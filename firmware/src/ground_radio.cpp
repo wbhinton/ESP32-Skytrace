@@ -36,7 +36,10 @@ float apply_median_filter(float* results, int count) {
 void setupListener() {
     LT.setRangingRole(0x01); 
     LT.writeRegister(0x9A, 0x01); 
-    LT.setIrqMask(0x8000 | 0x4000); 
+    LT.setDioIrqParams(IRQ_PREAMBLE_DETECTED | IRQ_RX_TX_TIMEOUT,
+                       IRQ_PREAMBLE_DETECTED | IRQ_RX_TX_TIMEOUT,
+                       0,
+                       0);
     currentMode = MODE_LISTENER;
     Serial.println(F("MODE:LISTENER"));
 }
@@ -69,7 +72,7 @@ void loop() {
         else if (cmd == 'L') setupListener();
         else if (cmd == '!' && currentMode == MODE_MASTER) {
             // 1. Send Sync Packet
-            LT.setupLoRa(SYNC_FREQ, 0, LORA_SF, LORA_BW, LORA_CR, 0x01);
+            LT.setupLoRa(SYNC_FREQ, 0, LORA_SF, LORA_BW, LORA_CR);
             uint8_t syncMsg[] = {0xAA, 0x55};
             LT.transmit(syncMsg, 2, 0, TX_POWER, WAIT_TX);
             delay(10); 
@@ -114,7 +117,7 @@ void loop() {
 
     if (currentMode == MODE_LISTENER) {
         // Wait for Sync
-        LT.setupLoRa(SYNC_FREQ, 0, LORA_SF, LORA_BW, LORA_CR, 0x01);
+        LT.setupLoRa(SYNC_FREQ, 0, LORA_SF, LORA_BW, LORA_CR);
         uint8_t syncBuf[2];
         if (LT.receive(syncBuf, 2, 50, WAIT_RX) > 0) {
             uint32_t rawResults[NUM_HOPS];
@@ -123,18 +126,21 @@ void loop() {
             for (int i = 0; i < NUM_HOPS; i++) {
                 // Setup Advanced Listener for this hop
                 LT.setMode(MODE_STDBY_RC);
-                LT.setFrequency(CHANNELS_BLE[i]);
+                LT.setRfFrequency(CHANNELS_BLE[i], 0);
                 LT.setRangingRole(0x01); 
                 LT.writeRegister(0x9A, 0x01);
-                LT.setIrqMask(0x8000 | 0x4000);
-                LT.setRx(0x01, 40); // 40ms timeout
+                LT.setDioIrqParams(IRQ_PREAMBLE_DETECTED | IRQ_RX_TX_TIMEOUT,
+                                   IRQ_PREAMBLE_DETECTED | IRQ_RX_TX_TIMEOUT,
+                                   0,
+                                   0);
+                LT.setRx(40);
 
                 unsigned long start = millis();
                 while (millis() - start < 45) {
                     uint16_t irqStatus = LT.readIrqStatus();
                     if (irqStatus & 0x8000) {
                         LT.clearIrqStatus(0x8000);
-                        LT.setStandby(STDBY_XOSC);
+                        LT.setMode(MODE_STDBY_XOSC);
                         uint8_t reg97F = LT.readRegister(0x97F);
                         LT.writeRegister(0x97F, reg97F | 0x02);
                         uint32_t raw = (uint32_t)LT.readRegister(0x0961) << 16 | (uint32_t)LT.readRegister(0x0962) << 8 | LT.readRegister(0x0963);

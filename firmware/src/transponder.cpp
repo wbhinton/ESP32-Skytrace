@@ -24,14 +24,14 @@ void setup() {
 
 void loop() {
     // 1. Wait for Sync Packet on Home Frequency
-    LT.setupLoRa(SYNC_FREQ, 0, LORA_SF10, LORA_BW_0800, LORA_CR_4_5, 0x01);
+    LT.setupLoRa(SYNC_FREQ, 0, LORA_SF10, LORA_BW_0800, LORA_CR_4_5);
     uint8_t syncBuf[2];
     if (LT.receive(syncBuf, 2, 0, WAIT_RX) > 0) {
         // Sync received! Start hopping.
         for (int i = 0; i < NUM_HOPS; i++) {
             // Set Frequency for this hop
             LT.setMode(MODE_STDBY_RC);
-            LT.setFrequency(CHANNELS_BLE[i]);
+            LT.setRfFrequency(CHANNELS_BLE[i], 0);
             
             // Switch to Ranging Slave Mode
             LT.setupRanging(CHANNELS_BLE[i], 0, LORA_SF, LORA_BW, LORA_CR, RANGING_ADDR, RANGING_SLAVE);
